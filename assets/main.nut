@@ -1,31 +1,55 @@
 emo.Runtime.import("physics.nut");
+emo.Runtime.import("bg.nut");
 
+
+//===================================================
+// Global work
+//===================================================
+work <-
+{
+	physics = null,
+	world = null,
+}
+
+
+
+//===================================================
+// Main Class
+//===================================================
 class Main
 {
+	physics = null;
+	world = null;
+	bg = null;
+
+	ballFixture = null;
+	ballDef = null;
+
+	boxes = [];
 	obj1 = null;
 	stX = 0;
 	stY = 0;
 	rope = null;
-	ground = null;
-	stage = null;
-	event = null;
-	physics = null;
-	gravity = null;
-	world = null;
-	ballFixture = null;
-	ballDef = null;
-	gravity = null;
 
+	mouseJoint = null;
+	mouseJointDef = null;
+
+	//===================================================
+	// onLoad
+	//===================================================
 	function onLoad()
 	{
 		print("onLoad"); 
 //		emo.Runtime().setOptions(OPT_ORIENTATION_LANDSCAPE);
 
-		stage = emo.Stage();
-		event = emo.Event();
-		physics = emo.Physics();
-		gravity = emo.Vec2(0, 10);
-		world = emo.physics.World( gravity, true) ;
+		::work.physics = emo.Physics();
+		physics = ::work.physics;
+
+		::work.world = emo.physics.World( emo.Vec2(0,10), true );
+		world = ::work.world;
+
+		bg = Bg();
+		bg.load();
 
 		obj1 = emo.Rectangle();
 		obj1.move( 100, 40 );
@@ -38,12 +62,6 @@ class Main
 		rope.hide();
 
 
-		ground = emo.Rectangle();
-		ground.setSize( 800, 10 );
-		ground.move( 0, 750 );
-		physics.createStaticSprite( world, ground );
-		ground.load();
-
 		ballFixture = emo.physics.FixtureDef();
 		ballFixture.density  = 1.0;
 		ballFixture.friction = 0.3;
@@ -53,61 +71,103 @@ class Main
 		ballDef = emo.physics.BodyDef();
 		ballDef.allowSleep = false;
 
-		AddBox( 50, 50 );
-		event.enableOnDrawCallback( 1000.0 / 60.0 );
+		local box1 = AddBox( 50, 50 );
+		emo.Event().enableOnDrawCallback( 1000.0 / 60.0 );
+		emo.Stage().interval( 1000.0 / 60.0 );
+
+		mouseJointDef = emo.physics.MouseJointDef();
+		mouseJointDef.bodyA = world.getGroundBody();
+		mouseJointDef.bodyB = box1.getBody();
+		mouseJointDef.maxForce = 50;
+
 	}
 
+
+	//===================================================
+	// AddBox
+	//===================================================
 	function AddBox( x, y )
 	{
-		local sprite = emo.Rectangle();
-		sprite.setSize( 20, 20 );
-		sprite.load();
-		sprite.move( x, y );
-//		sprites.append( sprite );
+		local box = emo.Rectangle();
+		box.setSize( 20, 20 );
+		box.load();
+		box.move( x, y );
 
-		physics.createDynamicSprite
+		local dSprite = physics.createDynamicSprite
 		(
-			world, sprite, ballFixture, ballDef
+			world, box, ballFixture, ballDef
 		);
+		boxes.append( dSprite.body );
+
+		print("AddBox");
+		print(boxes[0]);
+		return dSprite;
 	}
 
+
+	//===================================================
+	// onGainedFocus
+	//===================================================
 	function onGainedFocus()
 	{
 		print("onGainedFocus");
 	}
 
+
+	//===================================================
+	// onLostFocus
+	//===================================================
 	function onLostFocus()
 	{
 		print("onLostFocus"); 
 	}
 
+
+	//===================================================
+	// onDispose
+	//===================================================
 	function onDispose()
 	{
 		print("onDispose");
 	}
 
+
+	//===================================================
+	// onMotionEvent
+	//===================================================
 	function onMotionEvent( mevent )
 	{
 		local x = mevent.getX();
 		local y = mevent.getY();
 		if( mevent.getAction() == MOTION_EVENT_ACTION_DOWN )
 		{
+			mouseJointDef.target = world.getWorldCoord(mevent.getX(), mevent.getY());
+			mouseJoint = world.createJoint(mouseJointDef);
 			stX = x;
 			stY = y;
 		}
 		else if( mevent.getAction() == MOTION_EVENT_ACTION_MOVE )
 		{
-			obj1.moveCenter( x, y );
+			mouseJoint.setTarget(world.getWorldCoord(mevent.getX(), mevent.getY()));
+//			obj1.moveCenter( x, y );
+//			print( boxes[0].setTransform( emo.Vec2(3,10), 0.0 ) );
+//			print( boxes[0].getPosition().x+","+boxes[0].getPosition().y );
 			rope.show();
 			rope.move( stX, stY, x, y );
 		}
 		else if( mevent.getAction() == MOTION_EVENT_ACTION_UP ||
 				 mevent.getAction() == MOTION_EVENT_ACTION_CANCEL )
 		{
+			world.destroyJoint(mouseJoint);
+			mouseJoint = null;
 			rope.hide();
 		}
 	}
 
+
+	//===================================================
+	// onDrawFrame
+	//===================================================
 	function onDrawFrame( dt )
 	{
 		world.step( dt / 1000.0, 5, 2 );
@@ -115,6 +175,10 @@ class Main
 	}
 }
 
+
+//===================================================
+// onLoad
+//===================================================
 function emo::onLoad()
 {
 	emo.Stage().load( Main() );
